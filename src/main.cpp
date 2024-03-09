@@ -51,7 +51,7 @@ float batt_I = 0;
 float batt_I_Setpoint = 2;
 float Vcs_BAT_ref = 0;
 
-class PID Boost_PID(1024, 0);
+class PID Boost_PID(1000, 0);  //Não pode ter max value de 1024 senão a o mosfet fica sempre ligado
 float dcbus_V_RAW = 0;
 float dcbus_V_INTEGRAL = 0;
 float dcbus_V = 0;
@@ -454,4 +454,4 @@ void sensorCalib()
 
 	Vcs_BAT_ref = Vcs_BAT_ref / (float) 100;
 	Vcs_BAT_ref = Vcs_BAT_ref / 0.12; //Mudar dependendo do Sensor
-}
+} 
