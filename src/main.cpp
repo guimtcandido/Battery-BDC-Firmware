@@ -480,30 +480,30 @@ void sensorCalib()
 void cansartTasks()
 {
 
-  frames10.DATA1 = ((uint8_t)(batt_V * 100)) >> 8;
-  frames10.DATA2 = (batt_V * 100);
-  frames10.DATA3 = ((uint8_t)(batt_I * 100)) >> 8;
-  frames10.DATA4 = (batt_I * 100);
-  frames10.DATA5 = ((uint8_t)(dcbus_V * 100)) >> 8;
-  frames10.DATA6 = (dcbus_V * 100);
+  frames10.DATA1 = ((uint16_t)(batt_V * 100) >> 8);
+  frames10.DATA2 = (uint16_t)(batt_V * 100);
+  frames10.DATA3 = ((uint16_t)(batt_I * 100) >> 8);
+  frames10.DATA4 = (uint16_t)(batt_I * 100);
+  frames10.DATA5 = ((uint16_t)(dcbus_V * 100) >> 8);
+  frames10.DATA6 = (uint16_t)(dcbus_V * 100);
   frames10.DATA7 = operationMode;
 
-  frames11.DATA1 = ((uint8_t)(dcbus_I * 100)) >> 8;
-  frames11.DATA2 = (dcbus_I * 100);
+  frames11.DATA1 = ((uint16_t)(dcbus_I * 100) >> 8);
+  frames11.DATA2 = (uint16_t)(dcbus_I * 100);
   if (operationMode == BUCK_MODE)
   {
-    frames11.DATA3 = ((uint8_t)(batt_V_Setpoint * 100)) >> 8;
-    frames11.DATA4 = (batt_V_Setpoint * 100);
+    frames11.DATA3 = ((uint16_t)(batt_V_Setpoint * 100) >> 8);
+    frames11.DATA4 = (uint16_t)(batt_V_Setpoint * 100);
   }
   else if (operationMode == BOOST_MODE)
   {
-    frames11.DATA3 = ((uint8_t)(dcbus_V_Setpoint * 100)) >> 8;
-    frames11.DATA4 = (dcbus_V_Setpoint * 100);
+    frames11.DATA3 = ((uint16_t)(dcbus_V_Setpoint * 100) >> 8);
+    frames11.DATA4 = (uint16_t)(dcbus_V_Setpoint * 100);
   }
   else if (operationMode == BATT_CHARGE_MODE)
   {
-    frames11.DATA3 = ((uint8_t)(batt_I_Setpoint * 100)) >> 8;
-    frames11.DATA4 = (batt_I_Setpoint * 100);
+    frames11.DATA3 = ((uint16_t)(batt_I_Setpoint * 100) >> 8);
+    frames11.DATA4 = (uint16_t)(batt_I_Setpoint * 100);
   }
   else if (operationMode == OFF_MODE)
   {
@@ -514,26 +514,26 @@ void cansartTasks()
   frames11.DATA5 = digitalRead(CIRCUIT_BREAKER_PIN);
   frames11.DATA6 = batt_CHARGED;
 
-  frames12.DATA1 = ((uint8_t)(Buck_PID.getKp() * 100)) >> 8;
-  frames12.DATA2 = (Buck_PID.getKp() * 100);
-  frames12.DATA3 = ((uint8_t)(Buck_PID.getKi() * 100)) >> 8;
-  frames12.DATA4 = (Buck_PID.getKi() * 100);
-  frames12.DATA5 = ((uint8_t)(Buck_PID.getKd() * 100)) >> 8;
-  frames12.DATA6 = (Buck_PID.getKd() * 100);
+  frames12.DATA1 = ((uint16_t)(Buck_PID.getKp() * 100) >> 8);
+  frames12.DATA2 = (uint16_t)(Buck_PID.getKp() * 100);
+  frames12.DATA3 = ((uint16_t)(Buck_PID.getKi() * 100) >> 8);
+  frames12.DATA4 = (uint16_t)(Buck_PID.getKi() * 100);
+  frames12.DATA5 = ((uint16_t)(Buck_PID.getKd() * 100) >> 8);
+  frames12.DATA6 = (uint16_t)(Buck_PID.getKd() * 100);
 
-  frames13.DATA1 = ((uint8_t)(Boost_PID.getKp() * 100)) >> 8;
-  frames13.DATA2 = (Boost_PID.getKp() * 100);
-  frames13.DATA3 = ((uint8_t)(Boost_PID.getKi() * 100)) >> 8;
+  frames13.DATA1 = ((uint16_t)(Boost_PID.getKp() * 100) >> 8);
+  frames13.DATA2 = (uint16_t)(Boost_PID.getKp() * 100);
+  frames13.DATA3 = ((uint16_t)(Boost_PID.getKi() * 100) >> 8);
   frames13.DATA4 = (Boost_PID.getKi() * 100);
-  frames13.DATA5 = ((uint8_t)(Boost_PID.getKd() * 100)) >> 8;
-  frames13.DATA6 = (Boost_PID.getKd() * 100);
+  frames13.DATA5 = ((uint16_t)(Boost_PID.getKd() * 100) >> 8);
+  frames13.DATA6 = (uint16_t)(Boost_PID.getKd() * 100);
 
-  frames14.DATA1 = ((uint8_t)(Buck_I_PID.getKp() * 100)) >> 8;
-  frames14.DATA2 = (Buck_I_PID.getKp() * 100);
-  frames14.DATA3 = ((uint8_t)(Buck_I_PID.getKi() * 100)) >> 8;
-  frames14.DATA4 = (Buck_I_PID.getKi() * 100);
-  frames14.DATA5 = ((uint8_t)(Buck_I_PID.getKd() * 100)) >> 8;
-  frames14.DATA6 = (Buck_I_PID.getKd() * 100);
+  frames14.DATA1 = ((uint16_t)(Buck_I_PID.getKp() * 100) >> 8);
+  frames14.DATA2 = (uint16_t)(Buck_I_PID.getKp() * 100);
+  frames14.DATA3 = ((uint16_t)(Buck_I_PID.getKi() * 100) >> 8);
+  frames14.DATA4 = (uint16_t)(Buck_I_PID.getKi() * 100);
+  frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
+  frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
 
   updateDB(&frames10);
   updateDB(&frames11);
@@ -544,19 +544,21 @@ void cansartTasks()
   updateDB(&frames122);
 
   operationMode = frames121.DATA1;
+
   digitalWrite(CIRCUIT_BREAKER_PIN, frames121.DATA4);
-  float tempValue = ((float)(frames122.DATA1 << 8 | frames122.DATA2) / (float)100);
-  float tempValue2 = ((float)(frames122.DATA3 << 8 | frames122.DATA4) / (float)100);
-  float tempValue3 = ((float)(frames122.DATA5 << 8 | frames122.DATA6) / (float)100);
+
+  float tempValue = (float)(frames122.DATA1 << 8 | frames122.DATA2) / 100;
+  float tempValue2 = (float)(frames122.DATA3 << 8 | frames122.DATA4) / 100;
+  float tempValue3 = (float)(frames122.DATA5 << 8 | frames122.DATA6) / 100;
 
   if (operationMode == BUCK_MODE)
   {
-    batt_V_Setpoint = ((float)(frames121.DATA2 << 8 | frames121.DATA3) / (float)100);
+    batt_V_Setpoint = ((float)(frames121.DATA2 << 8 | frames121.DATA3) / 100);
     Buck_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
   }
   else if (operationMode == BOOST_MODE)
   {
-    dcbus_V_Setpoint = ((float)(frames121.DATA2 << 8 | frames121.DATA3) / (float)100);
+    dcbus_V_Setpoint = ((float)(frames121.DATA2 << 8 | frames121.DATA3) / 100);
     Boost_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
   }
 
