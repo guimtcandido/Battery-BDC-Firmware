@@ -41,6 +41,7 @@ void safetyCheck();
 void printGAINS();
 void sensorCalib();
 void cansartTasks();
+uint8_t cansartInit();
 
 uint8_t operationMode = 0;
 
@@ -65,6 +66,7 @@ float dcbus_I_RAW = 0;
 float dcbus_I_INTEGRAL = 0;
 float dcbus_I = 0;
 float dcbus_I_Setpoint = 0;
+float Vcs_DCBUS_ref = 0;
 
 uint8_t avgCounter = 0;
 
@@ -198,7 +200,7 @@ void getConverterValues()
   dcbus_V_RAW = VO_BST_SENRATIO * dcbus_V_RAW;
 
   dcbus_I_RAW = (float)(analogRead(DCBUS_CURRENT_PIN) >> 2) * (float)3.3 / (float)1023;
-  dcbus_I_RAW = (dcbus_I_RAW - 2.29) / (float)0.1746;
+  dcbus_I_RAW = (dcbus_I_RAW / 0.12) - Vcs_BAT_ref;
 
   batt_V_INTEGRAL += batt_V_RAW;
   batt_I_INTEGRAL += batt_I_RAW;
@@ -207,9 +209,9 @@ void getConverterValues()
 
   if (avgCounter == 5)
   {
-    batt_V = (batt_V_INTEGRAL / (float)5.00) - 1;
+    batt_V = (batt_V_INTEGRAL / (float)5.00);
     batt_I = (batt_I_INTEGRAL / (float)5.00 + 0.1);
-    dcbus_V = (dcbus_V_INTEGRAL / (float)5.00) - 3;
+    dcbus_V = (dcbus_V_INTEGRAL / (float)5.00) - 2;
     dcbus_I = dcbus_I_INTEGRAL / (float)5.00;
     avgCounter = 0;
     batt_V_INTEGRAL = 0;
@@ -470,26 +472,28 @@ void sensorCalib()
   for (int i = 0; i < 100; i++)
   {
     Vcs_BAT_ref += (float)(analogRead(BAT_CURRENT_PIN) >> 2) * (float)3.3 / (float)1023;
+    Vcs_DCBUS_ref += (float)(analogRead(DCBUS_CURRENT_PIN) >> 2) * (float)3.3 / (float)1023;
     delay(2); // MUDAR ao MUDAR MCU
   }
 
   Vcs_BAT_ref = Vcs_BAT_ref / (float)100;
   Vcs_BAT_ref = Vcs_BAT_ref / 0.12; // Mudar dependendo do Sensor
+  Vcs_DCBUS_ref = Vcs_BAT_ref /(float)100;
+  Vcs_DCBUS_ref = Vcs_BAT_ref / 0.12; // Mudar dependendo do Sensor
 }
 
 void cansartTasks()
 {
 
-  frames10.DATA1 = ((uint16_t)(batt_V * 100) >> 8);
-  frames10.DATA2 = (uint16_t)(batt_V * 100);
-  frames10.DATA3 = ((uint16_t)(batt_I * 100) >> 8);
-  frames10.DATA4 = (uint16_t)(batt_I * 100);
-  frames10.DATA5 = ((uint16_t)(dcbus_V * 100) >> 8);
-  frames10.DATA6 = (uint16_t)(dcbus_V * 100);
+  frames10.DATA1 = ((uint16_t)(batt_V * 100+1000) >> 8);
+  frames10.DATA2 = (uint16_t)(batt_V * 100+1000);
+  frames10.DATA3 = ((uint16_t)(batt_I * 100 + 1000) >> 8);
+  frames10.DATA4 = (uint16_t)(batt_I * 100 + 1000);
+  frames10.DATA5 = ((uint16_t)(dcbus_V * 100+1000) >> 8);
+  frames10.DATA6 = (uint16_t)(dcbus_V * 100+1000);
   frames10.DATA7 = operationMode;
-
-  frames11.DATA1 = ((uint16_t)(dcbus_I * 100) >> 8);
-  frames11.DATA2 = (uint16_t)(dcbus_I * 100);
+  frames11.DATA1 = ((uint16_t)(dcbus_I * 100+1000) >> 8);
+  frames11.DATA2 = (uint16_t)(dcbus_I * 100+1000);
   if (operationMode == BUCK_MODE)
   {
     frames11.DATA3 = ((uint16_t)(batt_V_Setpoint * 100) >> 8);
@@ -524,7 +528,7 @@ void cansartTasks()
   frames13.DATA1 = ((uint16_t)(Boost_PID.getKp() * 100) >> 8);
   frames13.DATA2 = (uint16_t)(Boost_PID.getKp() * 100);
   frames13.DATA3 = ((uint16_t)(Boost_PID.getKi() * 100) >> 8);
-  frames13.DATA4 = (Boost_PID.getKi() * 100);
+  frames13.DATA4 = (uint16_t)(Boost_PID.getKi() * 100);
   frames13.DATA5 = ((uint16_t)(Boost_PID.getKd() * 100) >> 8);
   frames13.DATA6 = (uint16_t)(Boost_PID.getKd() * 100);
 
@@ -547,9 +551,9 @@ void cansartTasks()
 
   digitalWrite(CIRCUIT_BREAKER_PIN, frames121.DATA4);
 
-  float tempValue = (float)(frames122.DATA1 << 8 | frames122.DATA2) / 100;
-  float tempValue2 = (float)(frames122.DATA3 << 8 | frames122.DATA4) / 100;
-  float tempValue3 = (float)(frames122.DATA5 << 8 | frames122.DATA6) / 100;
+  float tempValue = ((float)(frames122.DATA1 << 8 | frames122.DATA2) / 100);
+  float tempValue2 = ((float)(frames122.DATA3 << 8 | frames122.DATA4) / 100);
+  float tempValue3 = ((float)(frames122.DATA5 << 8 | frames122.DATA6) / 100);
 
   if (operationMode == BUCK_MODE)
   {
@@ -558,7 +562,7 @@ void cansartTasks()
   }
   else if (operationMode == BOOST_MODE)
   {
-    dcbus_V_Setpoint = ((float)(frames121.DATA2 << 8 | frames121.DATA3) / 100);
+    dcbus_V_Setpoint = ((float)(frames121.DATA5 << 8 | frames121.DATA6) / 100);
     Boost_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
   }
 
