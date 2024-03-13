@@ -3,6 +3,8 @@
 #include "cansart.h"
 #include <HardwareSerial.h>
 
+unsigned long oldMillisTEMP = 0;
+
 HardwareSerial &serialPort = Serial;
 
 #define VO_BATT_SENRATIO 11 // Medir empiricamente
@@ -193,11 +195,14 @@ void getConverterValues()
   batt_V_RAW = (float)VO_BATT_SENRATIO * batt_V_RAW;
 
   batt_I_RAW = (float)(analogRead(BAT_CURRENT_PIN) >> 2) * (float)3.3 / (float)1023;
-  batt_I_RAW = (batt_I_RAW / 0.12) - Vcs_BAT_ref;
+  batt_I_RAW = ((batt_I_RAW- Vcs_BAT_ref) / 0.12) ;
   // batt_I_RAW = (batt_I_RAW - 2.29) / (float)0.1431;
 
+if(micros() - oldMillisTEMP >= 2000){
   dcbus_V_RAW = (float)(analogRead(DCBUS_VOLTAGE_PIN) >> 2) * (float)3.3 / (float)1023;
   dcbus_V_RAW = VO_BST_SENRATIO * dcbus_V_RAW;
+ oldMillisTEMP = micros();
+}
 
   dcbus_I_RAW = (float)(analogRead(DCBUS_CURRENT_PIN) >> 2) * (float)3.3 / (float)1023;
   dcbus_I_RAW = (dcbus_I_RAW / 0.12) - Vcs_BAT_ref;
@@ -498,16 +503,22 @@ void cansartTasks()
   {
     frames11.DATA3 = ((uint16_t)(batt_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_V_Setpoint * 100);
+    frames14.DATA7 = ((uint16_t)(Buck_PID.Control() * 100+1000) >> 8);
+    frames14.DATA8 = (uint16_t)(Buck_PID.Control() * 100+1000);
   }
   else if (operationMode == BOOST_MODE)
   {
     frames11.DATA3 = ((uint16_t)(dcbus_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(dcbus_V_Setpoint * 100);
+    frames14.DATA7 = ((uint16_t)(Boost_PID.Control() * 100+1000) >> 8);
+    frames14.DATA8 = (uint16_t)(Boost_PID.Control() * 100+1000);
   }
   else if (operationMode == BATT_CHARGE_MODE)
   {
     frames11.DATA3 = ((uint16_t)(batt_I_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_I_Setpoint * 100);
+    frames14.DATA7 = ((uint16_t)(Buck_I_PID.Control() * 100+1000) >> 8);
+    frames14.DATA8 = (uint16_t)(Buck_I_PID.Control() * 100+1000);
   }
   else if (operationMode == OFF_MODE)
   {
@@ -538,6 +549,7 @@ void cansartTasks()
   frames14.DATA4 = (uint16_t)(Buck_I_PID.getKi() * 100);
   frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
   frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
+  
 
   updateDB(&frames10);
   updateDB(&frames11);
