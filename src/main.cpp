@@ -2,12 +2,13 @@
 #include "CANDPID.h"
 #include "cansart.h"
 #include <HardwareSerial.h>
+#include "VirtualTimer.h"
 
 HardwareSerial &serialPort = Serial;
 
-#define VO_BATT_SENRATIO 11 // Medir empiricamente
+#define VO_BATT_SENRATIO 9.6501 // Medir empiricamente
 #define IO_BATT_SENRATIO 1  // Medir empiricamente
-#define VO_BST_SENRATIO 11  // Medir empiricamente
+#define VO_BST_SENRATIO 8.4671  // Medir empiricamente
 #define IO_BST_SENRATIO 1   // Medir empiricamente
 
 #define OFF_MODE 0
@@ -57,7 +58,7 @@ float batt_I = 0;
 float batt_I_Setpoint = 2;
 float Vcs_BAT_ref = 0;
 
-class PID Boost_PID(1000, 0);  //Não pode ter max value de 1024 senão a o mosfet fica sempre ligado
+class PID Boost_PID(1000, 0); // Não pode ter max value de 1024 senão a o mosfet fica sempre ligado
 float dcbus_V_RAW = 0;
 float dcbus_V_INTEGRAL = 0;
 float dcbus_V = 0;
@@ -67,6 +68,10 @@ float dcbus_I_INTEGRAL = 0;
 float dcbus_I = 0;
 float dcbus_I_Setpoint = 0;
 float Vcs_DCBUS_ref = 0;
+float batt_V_temp = 0;
+float batt_I_temp = 0;
+float dcbus_V_temp = 0;
+float dcbus_I_temp = 0;
 
 uint8_t avgCounter = 0;
 
@@ -75,6 +80,8 @@ uint8_t batt_CHARGED = false;
 unsigned long vTimer_prev_0 = 0;
 
 bool awakeMCU = false;
+
+virtualTimer sensorACQ_Timer(10, '-');
 
 frame10 frames10;
 frame11 frames11;
@@ -108,6 +115,8 @@ void setup()
   pinMode(CIRCUIT_BREAKER_PIN, OUTPUT);
   digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
   sensorCalib();
+
+  sensorACQ_Timer.start();
 }
 
 void loop()
@@ -209,10 +218,10 @@ void getConverterValues()
 
   if (avgCounter == 5)
   {
-    batt_V = (batt_V_INTEGRAL / (float)5.00);
-    batt_I = (batt_I_INTEGRAL / (float)5.00 + 0.1);
-    dcbus_V = (dcbus_V_INTEGRAL / (float)5.00) - 2;
-    dcbus_I = dcbus_I_INTEGRAL / (float)5.00;
+    batt_V_temp = (batt_V_INTEGRAL / (float)5.00);
+    batt_I_temp = (batt_I_INTEGRAL / (float)5.00);
+    dcbus_V_temp = (dcbus_V_INTEGRAL / (float)5.00);
+    dcbus_I_temp = (dcbus_I_INTEGRAL / (float)5.00);
     avgCounter = 0;
     batt_V_INTEGRAL = 0;
     batt_I_INTEGRAL = 0;
@@ -222,6 +231,15 @@ void getConverterValues()
   else
   {
     avgCounter++;
+  }
+  
+  if (sensorACQ_Timer.Q()) // Acquisition time 10ms
+  {
+    batt_V = batt_V_temp;
+    batt_I = batt_I_temp;
+    dcbus_V = dcbus_V_temp;
+    dcbus_I = dcbus_I_temp;
+    sensorACQ_Timer.start();
   }
 }
 
@@ -478,36 +496,47 @@ void sensorCalib()
 
   Vcs_BAT_ref = Vcs_BAT_ref / (float)100;
   Vcs_BAT_ref = Vcs_BAT_ref / 0.12; // Mudar dependendo do Sensor
-  Vcs_DCBUS_ref = Vcs_BAT_ref /(float)100;
+  Vcs_DCBUS_ref = Vcs_BAT_ref / (float)100;
   Vcs_DCBUS_ref = Vcs_BAT_ref / 0.12; // Mudar dependendo do Sensor
 }
 
 void cansartTasks()
 {
 
-  frames10.DATA1 = ((uint16_t)(batt_V * 100+1000) >> 8);
-  frames10.DATA2 = (uint16_t)(batt_V * 100+1000);
+  frames10.DATA1 = ((uint16_t)(batt_V * 100 + 1000) >> 8);
+  frames10.DATA2 = (uint16_t)(batt_V * 100 + 1000);
+
   frames10.DATA3 = ((uint16_t)(batt_I * 100 + 1000) >> 8);
   frames10.DATA4 = (uint16_t)(batt_I * 100 + 1000);
-  frames10.DATA5 = ((uint16_t)(dcbus_V * 100+1000) >> 8);
-  frames10.DATA6 = (uint16_t)(dcbus_V * 100+1000);
+
+  frames10.DATA5 = ((uint16_t)(dcbus_V * 100 + 1000) >> 8);
+  frames10.DATA6 = (uint16_t)(dcbus_V * 100 + 1000);
+
   frames10.DATA7 = operationMode;
-  frames11.DATA1 = ((uint16_t)(dcbus_I * 100+1000) >> 8);
-  frames11.DATA2 = (uint16_t)(dcbus_I * 100+1000);
+
+  frames11.DATA1 = ((uint16_t)(dcbus_I * 100 + 1000) >> 8);
+  frames11.DATA2 = (uint16_t)(dcbus_I * 100 + 1000);
+
   if (operationMode == BUCK_MODE)
   {
     frames11.DATA3 = ((uint16_t)(batt_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_V_Setpoint * 100);
+    frames14.DATA7 = ((uint16_t)(Buck_PID.Control()) >> 8); 
+    frames14.DATA8 = (uint16_t)(Buck_PID.Control());
   }
   else if (operationMode == BOOST_MODE)
   {
     frames11.DATA3 = ((uint16_t)(dcbus_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(dcbus_V_Setpoint * 100);
+    frames14.DATA7 = ((uint16_t)(Boost_PID.Control()) >> 8); 
+    frames14.DATA8 = (uint16_t)(Boost_PID.Control());
   }
   else if (operationMode == BATT_CHARGE_MODE)
   {
     frames11.DATA3 = ((uint16_t)(batt_I_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_I_Setpoint * 100);
+    frames14.DATA7 = ((uint16_t)(Buck_I_PID.Control()) >> 8); 
+    frames14.DATA8 = (uint16_t)(Buck_I_PID.Control());
   }
   else if (operationMode == OFF_MODE)
   {
@@ -538,6 +567,7 @@ void cansartTasks()
   frames14.DATA4 = (uint16_t)(Buck_I_PID.getKi() * 100);
   frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
   frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
+  
 
   updateDB(&frames10);
   updateDB(&frames11);
