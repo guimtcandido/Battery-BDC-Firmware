@@ -523,6 +523,8 @@ void cansartTasks()
     frames11.DATA4 = (uint16_t)(batt_V_Setpoint * 100);
     frames14.DATA7 = ((uint16_t)(Buck_PID.Control()) >> 8); 
     frames14.DATA8 = (uint16_t)(Buck_PID.Control());
+    frames13.DATA7 = ((uint16_t)(Buck_PID.getIntegral()) >> 8);
+    frames13.DATA8 = (uint16_t)(Buck_PID.getIntegral());
   }
   else if (operationMode == BOOST_MODE)
   {
@@ -530,6 +532,8 @@ void cansartTasks()
     frames11.DATA4 = (uint16_t)(dcbus_V_Setpoint * 100);
     frames14.DATA7 = ((uint16_t)(Boost_PID.Control()) >> 8); 
     frames14.DATA8 = (uint16_t)(Boost_PID.Control());
+    frames13.DATA7 = ((uint16_t)(Boost_PID.getIntegral()) >> 8);
+    frames13.DATA8 = (uint16_t)(Boost_PID.getIntegral());
   }
   else if (operationMode == BATT_CHARGE_MODE)
   {
@@ -567,6 +571,7 @@ void cansartTasks()
   frames14.DATA4 = (uint16_t)(Buck_I_PID.getKi() * 100);
   frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
   frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
+
   
 
   updateDB(&frames10);

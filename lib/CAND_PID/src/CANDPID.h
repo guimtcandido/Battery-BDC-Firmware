@@ -18,6 +18,10 @@ class PID{
     uint16_t MAX_SIGNAL_VALUE=0;
     uint16_t MIN_SIGNAL_VALUE=0;
 
+    float INTEGRAL_VALUE=0;
+
+    float integral_prev = 0;
+
     public:
 
     PID (uint16_t MAX_SIGNAL_VALUE, uint16_t MIN_SIGNAL_VALUE);
@@ -31,6 +35,7 @@ class PID{
     float getKp();
     float getKi();
     float getKd();
+    float getIntegral();
 };
 
 
