@@ -15,8 +15,8 @@ class PID{
     float signalError_PREVIOUS = 0;
     float signalError_DIFERENTIAL = 0;
     double CntrlSignal = 0;
-    uint16_t MAX_SIGNAL_VALUE=0;
-    uint16_t MIN_SIGNAL_VALUE=0;
+    float MAX_SIGNAL_VALUE=0;
+    float MIN_SIGNAL_VALUE=0;
 
     float INTEGRAL_VALUE=0;
 
@@ -24,7 +24,7 @@ class PID{
 
     public:
 
-    PID (uint16_t MAX_SIGNAL_VALUE, uint16_t MIN_SIGNAL_VALUE);
+    PID (float MAX_SIGNAL_VALUE, float MIN_SIGNAL_VALUE);
 
     void ParamSet(float Kp, float Ki, float Kd, float Ti=1, float Td=1);
     void updtError(double Setpoint, double valueNow);  
