@@ -17,10 +17,10 @@ HardwareSerial &serialPort = Serial;
 #define BATT_CHARGE_MODE 3
 
 #define BOOST_MODE_OFF ledcWrite(2, 0)
-#define BUCK_MODE_OFF ledcWrite(1, 1024)
+#define BUCK_MODE_OFF ledcWrite(1, 0)
 
-#define BUCK_PWM_PIN 23
-#define BOOST_PWM_PIN 22
+#define BUCK_PWM_PIN 22
+#define BOOST_PWM_PIN 23
 #define INVERTER_POS_PWM_PIN 21
 #define INVERTER_NEG_PWM_PIN 19
 
@@ -96,7 +96,7 @@ void setup()
   setCANSART_Driver(serialPort, 115200);
   ledcSetup(1, 20000, 10); // PWM BUCK
   ledcAttachPin(BUCK_PWM_PIN, 1);
-  ledcWrite(1, 1024);
+  ledcWrite(1, 0);
 
   ledcSetup(2, 20000, 10); // PWM BOOST
   ledcAttachPin(BOOST_PWM_PIN, 2);
@@ -178,7 +178,7 @@ void buckProcess()
   if (Buck_PID.OutSignal())
   {
 
-    ledcWrite(1, 1024 - Buck_PID.Control());
+    ledcWrite(1,Buck_PID.Control());
   }
 }
 
@@ -523,6 +523,8 @@ void cansartTasks()
     frames11.DATA4 = (uint16_t)(batt_V_Setpoint * 100);
     frames14.DATA7 = ((uint16_t)(Buck_PID.Control()) >> 8); 
     frames14.DATA8 = (uint16_t)(Buck_PID.Control());
+    frames13.DATA7 = ((uint16_t)(Buck_PID.getIntegral()) >> 8);
+    frames13.DATA8 = (uint16_t)(Buck_PID.getIntegral());
   }
   else if (operationMode == BOOST_MODE)
   {
@@ -530,6 +532,8 @@ void cansartTasks()
     frames11.DATA4 = (uint16_t)(dcbus_V_Setpoint * 100);
     frames14.DATA7 = ((uint16_t)(Boost_PID.Control()) >> 8); 
     frames14.DATA8 = (uint16_t)(Boost_PID.Control());
+    frames13.DATA7 = ((uint16_t)(Boost_PID.getIntegral()) >> 8);
+    frames13.DATA8 = (uint16_t)(Boost_PID.getIntegral());
   }
   else if (operationMode == BATT_CHARGE_MODE)
   {
@@ -567,6 +571,7 @@ void cansartTasks()
   frames14.DATA4 = (uint16_t)(Buck_I_PID.getKi() * 100);
   frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
   frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
+
   
 
   updateDB(&frames10);
