@@ -21,8 +21,8 @@ HardwareSerial &serialPort = Serial;
 #define BOOST_MODE_OFF ledcWrite(2, 0)
 #define BUCK_MODE_OFF ledcWrite(1, 0)
 
-#define BUCK_PWM_PIN 23
-#define BOOST_PWM_PIN 22
+#define BUCK_PWM_PIN 22
+#define BOOST_PWM_PIN 23
 #define INVERTER_POS_PWM_PIN 21
 #define INVERTER_NEG_PWM_PIN 19
 
