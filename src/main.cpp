@@ -7,9 +7,11 @@
 HardwareSerial &serialPort = Serial;
 
 #define VO_BATT_SENRATIO 9.6501 // Medir empiricamente
-#define IO_BATT_SENRATIO 1  // Medir empiricamente
+#define IO_BATT_SENRATIO 1      // Medir empiricamente
 #define VO_BST_SENRATIO 8.4671  // Medir empiricamente
-#define IO_BST_SENRATIO 1   // Medir empiricamente
+#define IO_BST_SENRATIO 1       // Medir empiricamente
+
+#define AVERAGE_SAMPLES 100
 
 #define OFF_MODE 0
 #define BUCK_MODE 1
@@ -19,17 +21,15 @@ HardwareSerial &serialPort = Serial;
 #define BOOST_MODE_OFF ledcWrite(2, 0)
 #define BUCK_MODE_OFF ledcWrite(1, 0)
 
-#define BUCK_PWM_PIN 22
-#define BOOST_PWM_PIN 23
+#define BUCK_PWM_PIN 23
+#define BOOST_PWM_PIN 22
 #define INVERTER_POS_PWM_PIN 21
 #define INVERTER_NEG_PWM_PIN 19
 
 #define BAT_VOLTAGE_PIN 15
-#define BAT_CURRENT_PIN 0
+#define BAT_CURRENT_PIN 14
 #define DCBUS_VOLTAGE_PIN 4
-#define DCBUS_CURRENT_PIN 2
-
-#define CIRCUIT_BREAKER_PIN 18
+#define DCBUS_CURRENT_PIN 35
 
 void buckProcess();
 void boostProcess();
@@ -49,22 +49,22 @@ uint8_t operationMode = 0;
 class PID Buck_PID(1024, 0);
 class PID Buck_I_PID(1024, 0);
 float batt_V_RAW = 0;
-float batt_V_INTEGRAL = 0;
+double batt_V_INTEGRAL = 0;
 float batt_V = 0;
 float batt_V_Setpoint = 0;
 float batt_I_RAW = 0;
-float batt_I_INTEGRAL = 0;
+double batt_I_INTEGRAL = 0;
 float batt_I = 0;
 float batt_I_Setpoint = 2;
 float Vcs_BAT_ref = 0;
 
 class PID Boost_PID(1000, 0); // Não pode ter max value de 1024 senão a o mosfet fica sempre ligado
 float dcbus_V_RAW = 0;
-float dcbus_V_INTEGRAL = 0;
+double dcbus_V_INTEGRAL = 0;
 float dcbus_V = 0;
 float dcbus_V_Setpoint = 0;
 float dcbus_I_RAW = 0;
-float dcbus_I_INTEGRAL = 0;
+double dcbus_I_INTEGRAL = 0;
 float dcbus_I = 0;
 float dcbus_I_Setpoint = 0;
 float Vcs_DCBUS_ref = 0;
@@ -109,14 +109,6 @@ void setup()
   ledcSetup(4, 20000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
   ledcWrite(4, 512);
-
-  Serial.begin(115200);
-
-  pinMode(CIRCUIT_BREAKER_PIN, OUTPUT);
-  digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
-  sensorCalib();
-
-  sensorACQ_Timer.start();
 }
 
 void loop()
@@ -178,7 +170,7 @@ void buckProcess()
   if (Buck_PID.OutSignal())
   {
 
-    ledcWrite(1,Buck_PID.Control());
+    ledcWrite(1, Buck_PID.Control());
   }
 }
 
@@ -198,30 +190,25 @@ void boostProcess()
 
 void getConverterValues()
 {
-  batt_V_RAW = (float)(analogRead(BAT_VOLTAGE_PIN) >> 2) * (float)3.3 / (float)1023;
-  batt_V_RAW = (float)VO_BATT_SENRATIO * batt_V_RAW;
+  batt_V_RAW = analogRead(BAT_VOLTAGE_PIN);
 
-  batt_I_RAW = (float)(analogRead(BAT_CURRENT_PIN) >> 2) * (float)3.3 / (float)1023;
-  batt_I_RAW = (batt_I_RAW / 0.12) - Vcs_BAT_ref;
-  // batt_I_RAW = (batt_I_RAW - 2.29) / (float)0.1431;
+  batt_I_RAW = analogRead(BAT_CURRENT_PIN);
 
-  dcbus_V_RAW = (float)(analogRead(DCBUS_VOLTAGE_PIN) >> 2) * (float)3.3 / (float)1023;
-  dcbus_V_RAW = VO_BST_SENRATIO * dcbus_V_RAW;
+  dcbus_V_RAW = analogRead(DCBUS_VOLTAGE_PIN);
 
-  dcbus_I_RAW = (float)(analogRead(DCBUS_CURRENT_PIN) >> 2) * (float)3.3 / (float)1023;
-  dcbus_I_RAW = (dcbus_I_RAW / 0.12) - Vcs_BAT_ref;
+  dcbus_I_RAW = analogRead(DCBUS_CURRENT_PIN);
 
   batt_V_INTEGRAL += batt_V_RAW;
   batt_I_INTEGRAL += batt_I_RAW;
   dcbus_V_INTEGRAL += dcbus_V_RAW;
   dcbus_I_INTEGRAL += dcbus_I_RAW;
 
-  if (avgCounter == 5)
+  if (avgCounter == AVERAGE_SAMPLES)
   {
-    batt_V_temp = (batt_V_INTEGRAL / (float)5.00);
-    batt_I_temp = (batt_I_INTEGRAL / (float)5.00);
-    dcbus_V_temp = (dcbus_V_INTEGRAL / (float)5.00);
-    dcbus_I_temp = (dcbus_I_INTEGRAL / (float)5.00);
+    batt_V = (batt_V_INTEGRAL / (float)AVERAGE_SAMPLES);
+    batt_I = (batt_I_INTEGRAL / (float)AVERAGE_SAMPLES);
+    dcbus_V = (dcbus_V_INTEGRAL / (float)AVERAGE_SAMPLES);
+    dcbus_I = (dcbus_I_INTEGRAL / (float)AVERAGE_SAMPLES);
     avgCounter = 0;
     batt_V_INTEGRAL = 0;
     batt_I_INTEGRAL = 0;
@@ -231,15 +218,6 @@ void getConverterValues()
   else
   {
     avgCounter++;
-  }
-  
-  if (sensorACQ_Timer.Q()) // Acquisition time 10ms
-  {
-    batt_V = batt_V_temp;
-    batt_I = batt_I_temp;
-    dcbus_V = dcbus_V_temp;
-    dcbus_I = dcbus_I_temp;
-    sensorACQ_Timer.start();
   }
 }
 
@@ -281,7 +259,7 @@ void monitorState()
     Serial.print("CM");
     Serial.print(operationMode); // Já está
     Serial.print("RE");
-    Serial.print(digitalRead(CIRCUIT_BREAKER_PIN)); // Já está
+    // Serial.print(digitalRead(CIRCUIT_BREAKER_PIN)); // Já está
     Serial.print("BS");
     Serial.print(batt_CHARGED); // Já está
     printGAINS();               // Já está
@@ -333,11 +311,11 @@ void monitorState()
     case 'C': // Já está
       if (tempValue)
       {
-        digitalWrite(CIRCUIT_BREAKER_PIN, HIGH);
+        // digitalWrite(CIRCUIT_BREAKER_PIN, HIGH);
       }
       else
       {
-        digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
+        // digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
       }
       break;
 
@@ -436,7 +414,7 @@ void safetyCheck()
 {
   if (batt_V >= 14.2 || batt_I >= 4 || batt_I <= -4 || dcbus_V >= 25)
   {
-    digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
+    // digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
     operationMode = OFF_MODE;
   }
 }
@@ -521,7 +499,7 @@ void cansartTasks()
   {
     frames11.DATA3 = ((uint16_t)(batt_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_V_Setpoint * 100);
-    frames14.DATA7 = ((uint16_t)(Buck_PID.Control()) >> 8); 
+    frames14.DATA7 = ((uint16_t)(Buck_PID.Control()) >> 8);
     frames14.DATA8 = (uint16_t)(Buck_PID.Control());
     frames13.DATA7 = ((uint16_t)(Buck_PID.getIntegral()) >> 8);
     frames13.DATA8 = (uint16_t)(Buck_PID.getIntegral());
@@ -530,7 +508,7 @@ void cansartTasks()
   {
     frames11.DATA3 = ((uint16_t)(dcbus_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(dcbus_V_Setpoint * 100);
-    frames14.DATA7 = ((uint16_t)(Boost_PID.Control()) >> 8); 
+    frames14.DATA7 = ((uint16_t)(Boost_PID.Control()) >> 8);
     frames14.DATA8 = (uint16_t)(Boost_PID.Control());
     frames13.DATA7 = ((uint16_t)(Boost_PID.getIntegral()) >> 8);
     frames13.DATA8 = (uint16_t)(Boost_PID.getIntegral());
@@ -539,7 +517,7 @@ void cansartTasks()
   {
     frames11.DATA3 = ((uint16_t)(batt_I_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_I_Setpoint * 100);
-    frames14.DATA7 = ((uint16_t)(Buck_I_PID.Control()) >> 8); 
+    frames14.DATA7 = ((uint16_t)(Buck_I_PID.Control()) >> 8);
     frames14.DATA8 = (uint16_t)(Buck_I_PID.Control());
   }
   else if (operationMode == OFF_MODE)
@@ -548,7 +526,7 @@ void cansartTasks()
     frames11.DATA4 = 0;
   }
 
-  frames11.DATA5 = digitalRead(CIRCUIT_BREAKER_PIN);
+  // frames11.DATA5 = digitalRead(CIRCUIT_BREAKER_PIN);
   frames11.DATA6 = batt_CHARGED;
 
   frames12.DATA1 = ((uint16_t)(Buck_PID.getKp() * 100) >> 8);
@@ -572,8 +550,6 @@ void cansartTasks()
   frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
   frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
 
-  
-
   updateDB(&frames10);
   updateDB(&frames11);
   updateDB(&frames12);
@@ -584,7 +560,7 @@ void cansartTasks()
 
   operationMode = frames121.DATA1;
 
-  digitalWrite(CIRCUIT_BREAKER_PIN, frames121.DATA4);
+  // digitalWrite(CIRCUIT_BREAKER_PIN, frames121.DATA4);
 
   float tempValue = ((float)(frames122.DATA1 << 8 | frames122.DATA2) / 100);
   float tempValue2 = ((float)(frames122.DATA3 << 8 | frames122.DATA4) / 100);
@@ -606,4 +582,4 @@ void cansartTasks()
     Buck_I_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
   }
 }
-//GITUPDATE
+// GITUPDATE
