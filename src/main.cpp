@@ -103,6 +103,10 @@ frame14 frames14;
 frame121 frames121;
 frame122 frames122;
 
+double pulse_width = 0;
+unsigned long cycleTime = 0;
+unsigned long start_timer_cycle = 0;
+
 void setup()
 {
   setCANSART_Driver(serialPort, 115200);
@@ -124,11 +128,11 @@ void setup()
   //   inverter_task();
   // }
 
-  ledcSetup(3, 20000, 10); // PWM BOOST
+  ledcSetup(3, 10000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
   ledcWrite(3, 0);
 
-  ledcSetup(4, 20000, 10); // PWM BOOST
+  ledcSetup(4, 10000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
   ledcWrite(4, 0);
 }
@@ -141,9 +145,9 @@ void loop()
   getConverterValues();
 
   processCycle();
-
+while(1){
   inverter_task();
-
+}
   // safetyCheck();
 
   cansartTasks();
@@ -169,6 +173,7 @@ void inverter_task()
         inverter_deadTime_Timer.reset();
         inverter_freq_Timer.reset();
         inverter_freq_Timer.start();
+        start_timer_cycle = micros();
       }
     }
     else
@@ -184,6 +189,7 @@ void inverter_task()
         inverter_deadTime_Timer.reset();
         inverter_freq_Timer.reset();
         inverter_freq_Timer.start();
+        start_timer_cycle = micros();
       }
     }
   }
@@ -194,23 +200,30 @@ void inverter_task()
   else
   {
 
-    if(inverter_pos_request)
+    if (inverter_pos_request)
     {
-      ledcWrite(3, 512);
-    }else{
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
+      ledcWrite(3, pulse_width);
+    }
+    else
+    {
       ledcWrite(3, 0);
     }
 
-    if(inverter_neg_request)
+    if (inverter_neg_request)
     {
-      ledcWrite(4, 512);
-    }else{
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
+      ledcWrite(4, pulse_width);
+    }
+    else
+    {
       ledcWrite(4, 0);
     }
-    
-      
-   // digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
-   // digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
+
+    // digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
+    // digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
   }
 }
 void processCycle()
