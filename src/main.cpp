@@ -4,12 +4,17 @@
 #include <HardwareSerial.h>
 #include "VirtualTimer.h"
 
+#define INVERTER_FREQ 50
+
+#define INVERTER_PERIOD 1 / INVERTER_FREQ
+#define INVERTER_HALF_PERIOD_ms ((INVERTER_PERIOD / 2) * 1000)
+
 HardwareSerial &serialPort = Serial;
 
-#define VO_BATT_SENRATIO 0.0093673      // Medir empiricamente
-#define IO_BATT_SENRATIO 0.0069767      // Medir empiricamente
-#define VO_BST_SENRATIO  0.0094574      // Medir empiricamente
-#define IO_BST_SENRATIO  0.0086074      // Medir empiricamente
+#define VO_BATT_SENRATIO 0.0093673 // Medir empiricamente
+#define IO_BATT_SENRATIO 0.0069767 // Medir empiricamente
+#define VO_BST_SENRATIO 0.0094574  // Medir empiricamente
+#define IO_BST_SENRATIO 0.0086074  // Medir empiricamente
 
 #define AVERAGE_SAMPLES 100
 
@@ -43,6 +48,7 @@ void printGAINS();
 void sensorCalib();
 void cansartTasks();
 uint8_t cansartInit();
+void inverter_task();
 
 uint8_t operationMode = 0;
 
@@ -73,6 +79,10 @@ float batt_I_temp = 0;
 float dcbus_V_temp = 0;
 float dcbus_I_temp = 0;
 
+uint8_t inverter_cycle = 0;
+uint8_t inverter_pos_request = 0;
+uint8_t inverter_neg_request = 0;
+
 uint8_t avgCounter = 0;
 
 uint8_t batt_CHARGED = false;
@@ -82,6 +92,8 @@ unsigned long vTimer_prev_0 = 0;
 bool awakeMCU = false;
 
 virtualTimer sensorACQ_Timer(10, '-');
+virtualTimer inverter_freq_Timer(INVERTER_HALF_PERIOD_ms, '-');
+virtualTimer inverter_deadTime_Timer(1, '-');
 
 frame10 frames10;
 frame11 frames11;
@@ -102,13 +114,13 @@ void setup()
   ledcAttachPin(BOOST_PWM_PIN, 2);
   ledcWrite(2, 0);
 
-  //ledcSetup(3, 20000, 10); // PWM BOOST
-  //ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
-  //ledcWrite(3, 512);
+  // ledcSetup(3, 20000, 10); // PWM BOOST
+  // ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
+  // ledcWrite(3, 512);
 
-  //ledcSetup(4, 20000, 10); // PWM BOOST
-  //ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
-  //ledcWrite(4, 512);
+  // ledcSetup(4, 20000, 10); // PWM BOOST
+  // ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
+  // ledcWrite(4, 512);
 }
 
 void loop()
@@ -120,11 +132,50 @@ void loop()
 
   processCycle();
 
+  inverter_task();
+
   // safetyCheck();
 
   cansartTasks();
 }
 
+void inverter_task()
+{
+
+  if (inverter_freq_Timer.Q())
+  {
+    if (!inverter_cycle)
+    {
+      inverter_neg_request = 0;
+
+      inverter_deadTime_Timer.start();
+
+      if (inverter_deadTime_Timer.Q())
+      {
+        inverter_pos_request = 1;
+        inverter_cycle = 1;
+      }
+    }else{
+      inverter_pos_request = 0;
+
+      inverter_deadTime_Timer.start();
+
+      if (inverter_deadTime_Timer.Q())
+      {
+        inverter_neg_request = 1;
+        inverter_cycle = 0;
+      }
+    
+    }
+  }
+
+if(inverter_pos_request && inverter_neg_request){
+}else{
+  digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
+  digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
+}
+
+}
 void processCycle()
 {
   switch (operationMode)
@@ -210,7 +261,7 @@ void getConverterValues()
     dcbus_V_temp = (dcbus_V_INTEGRAL / (float)AVERAGE_SAMPLES);
     dcbus_I_temp = (dcbus_I_INTEGRAL / (float)AVERAGE_SAMPLES);
     batt_V = batt_V_temp * VO_BATT_SENRATIO;
-    batt_I = batt_I_temp * IO_BATT_SENRATIO - 14.0729416 ;
+    batt_I = batt_I_temp * IO_BATT_SENRATIO - 14.0729416;
     dcbus_V = dcbus_V_temp * VO_BST_SENRATIO;
     dcbus_I = dcbus_I_temp * IO_BST_SENRATIO - 17.128725;
     avgCounter = 0;
