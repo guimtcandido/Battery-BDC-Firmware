@@ -102,13 +102,13 @@ void setup()
   ledcAttachPin(BOOST_PWM_PIN, 2);
   ledcWrite(2, 0);
 
-  ledcSetup(3, 20000, 10); // PWM BOOST
-  ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
-  ledcWrite(3, 512);
+  //ledcSetup(3, 20000, 10); // PWM BOOST
+  //ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
+  //ledcWrite(3, 512);
 
-  ledcSetup(4, 20000, 10); // PWM BOOST
-  ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
-  ledcWrite(4, 512);
+  //ledcSetup(4, 20000, 10); // PWM BOOST
+  //ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
+  //ledcWrite(4, 512);
 }
 
 void loop()
