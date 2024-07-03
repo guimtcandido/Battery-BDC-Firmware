@@ -92,7 +92,7 @@ unsigned long vTimer_prev_0 = 0;
 bool awakeMCU = false;
 
 virtualTimer sensorACQ_Timer(10, '-');
-virtualTimer inverter_freq_Timer(9, '-');
+virtualTimer inverter_freq_Timer(9, '-'); // compensar o deadtimer
 virtualTimer inverter_deadTime_Timer(1, '-');
 
 frame10 frames10;
@@ -114,23 +114,23 @@ void setup()
   ledcAttachPin(BOOST_PWM_PIN, 2);
   ledcWrite(2, 0);
 
-  pinMode(INVERTER_POS_PWM_PIN, OUTPUT);
-  pinMode(INVERTER_NEG_PWM_PIN, OUTPUT);
+  // pinMode(INVERTER_POS_PWM_PIN, OUTPUT);
+  // pinMode(INVERTER_NEG_PWM_PIN, OUTPUT);
 
   inverter_freq_Timer.start();
 
- // while (1)
- // {
- //   inverter_task();
- // }
+  // while (1)
+  // {
+  //   inverter_task();
+  // }
 
-  // ledcSetup(3, 20000, 10); // PWM BOOST
-  // ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
-  // ledcWrite(3, 512);
+  ledcSetup(3, 20000, 10); // PWM BOOST
+  ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
+  ledcWrite(3, 0);
 
-  // ledcSetup(4, 20000, 10); // PWM BOOST
-  // ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
-  // ledcWrite(4, 512);
+  ledcSetup(4, 20000, 10); // PWM BOOST
+  ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
+  ledcWrite(4, 0);
 }
 
 void loop()
@@ -154,7 +154,7 @@ void inverter_task()
 
   if (inverter_freq_Timer.Q())
   {
-  
+
     if (!inverter_cycle)
     {
       inverter_neg_request = 0;
@@ -194,8 +194,23 @@ void inverter_task()
   else
   {
 
-    digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
-    digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
+    if(inverter_pos_request)
+    {
+      ledcWrite(3, 512);
+    }else{
+      ledcWrite(3, 0);
+    }
+
+    if(inverter_neg_request)
+    {
+      ledcWrite(4, 512);
+    }else{
+      ledcWrite(4, 0);
+    }
+    
+      
+   // digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
+   // digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
   }
 }
 void processCycle()
