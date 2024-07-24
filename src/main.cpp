@@ -22,9 +22,12 @@ HardwareSerial &serialPort = Serial;
 #define BUCK_MODE 1
 #define BOOST_MODE 2
 #define BATT_CHARGE_MODE 3
+#define INVERTER_MODE 4
 
 #define BOOST_MODE_OFF ledcWrite(2, 0)
 #define BUCK_MODE_OFF ledcWrite(1, 0)
+#define INVERTER_MODE_OFF ledcWrite(3, 0); ledcWrite(4, 0)
+                          
 
 #define BUCK_PWM_PIN 22
 #define BOOST_PWM_PIN 23
@@ -48,7 +51,7 @@ void printGAINS();
 void sensorCalib();
 void cansartTasks();
 uint8_t cansartInit();
-void inverter_task();
+void inverterProcess();
 
 uint8_t operationMode = 0;
 
@@ -95,6 +98,10 @@ virtualTimer sensorACQ_Timer(10, '-');
 virtualTimer inverter_freq_Timer(9, '-'); // compensar o deadtimer
 virtualTimer inverter_deadTime_Timer(1, '-');
 
+double pulse_width = 0;
+unsigned long cycleTime = 0;
+unsigned long start_timer_cycle = 0;
+
 frame10 frames10;
 frame11 frames11;
 frame12 frames12;
@@ -114,15 +121,7 @@ void setup()
   ledcAttachPin(BOOST_PWM_PIN, 2);
   ledcWrite(2, 0);
 
-  // pinMode(INVERTER_POS_PWM_PIN, OUTPUT);
-  // pinMode(INVERTER_NEG_PWM_PIN, OUTPUT);
-
   inverter_freq_Timer.start();
-
-  // while (1)
-  // {
-  //   inverter_task();
-  // }
 
   ledcSetup(3, 20000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
@@ -142,77 +141,11 @@ void loop()
 
   processCycle();
 
-  inverter_task();
-
   // safetyCheck();
 
   cansartTasks();
 }
 
-void inverter_task()
-{
-
-  if (inverter_freq_Timer.Q())
-  {
-
-    if (!inverter_cycle)
-    {
-      inverter_neg_request = 0;
-
-      inverter_deadTime_Timer.start();
-
-      if (inverter_deadTime_Timer.Q())
-      {
-
-        inverter_pos_request = 1;
-        inverter_cycle = 1;
-        inverter_deadTime_Timer.reset();
-        inverter_freq_Timer.reset();
-        inverter_freq_Timer.start();
-      }
-    }
-    else
-    {
-      inverter_pos_request = 0;
-
-      inverter_deadTime_Timer.start();
-
-      if (inverter_deadTime_Timer.Q())
-      {
-        inverter_neg_request = 1;
-        inverter_cycle = 0;
-        inverter_deadTime_Timer.reset();
-        inverter_freq_Timer.reset();
-        inverter_freq_Timer.start();
-      }
-    }
-  }
-
-  if (inverter_pos_request && inverter_neg_request)
-  {
-  }
-  else
-  {
-
-    if(inverter_pos_request)
-    {
-      ledcWrite(3, 512);
-    }else{
-      ledcWrite(3, 0);
-    }
-
-    if(inverter_neg_request)
-    {
-      ledcWrite(4, 512);
-    }else{
-      ledcWrite(4, 0);
-    }
-    
-      
-   // digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
-   // digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
-  }
-}
 void processCycle()
 {
   switch (operationMode)
@@ -228,19 +161,27 @@ void processCycle()
     break;
 
   case BUCK_MODE:
-
+    INVERTER_MODE_OFF;
     buckProcess();
 
     break;
 
   case BOOST_MODE:
-
+    INVERTER_MODE_OFF;
     boostProcess();
 
     break;
 
   case BATT_CHARGE_MODE:
+    INVERTER_MODE_OFF;
     battCharge();
+    break;
+
+  case INVERTER_MODE:
+
+    boostProcess();
+    inverterProcess();
+
     break;
 
   default:
@@ -273,6 +214,77 @@ void boostProcess()
   {
 
     ledcWrite(2, Boost_PID.Control());
+  }
+}
+
+void inverterProcess()
+{
+
+  if (inverter_freq_Timer.Q())
+  {
+
+    if (!inverter_cycle)
+    {
+      inverter_neg_request = 0;
+
+      inverter_deadTime_Timer.start();
+
+      if (inverter_deadTime_Timer.Q())
+      {
+
+        inverter_pos_request = 1;
+        inverter_cycle = 1;
+        inverter_deadTime_Timer.reset();
+        inverter_freq_Timer.reset();
+        inverter_freq_Timer.start();
+        start_timer_cycle = micros();
+      }
+    }
+    else
+    {
+      inverter_pos_request = 0;
+
+      inverter_deadTime_Timer.start();
+
+      if (inverter_deadTime_Timer.Q())
+      {
+        inverter_neg_request = 1;
+        inverter_cycle = 0;
+        inverter_deadTime_Timer.reset();
+        inverter_freq_Timer.reset();
+        inverter_freq_Timer.start();
+        start_timer_cycle = micros();
+      }
+    }
+  }
+
+  if (inverter_pos_request && inverter_neg_request)
+  {
+  }
+  else
+  {
+
+    if (inverter_pos_request)
+    {
+      cycleTime = micros() - start_timer_cycle;
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime / 1e6);
+      ledcWrite(3, pulse_width);
+    }
+    else
+    {
+      ledcWrite(3, 0);
+    }
+
+    if (inverter_neg_request)
+    {
+      cycleTime = micros() - start_timer_cycle;
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime / 1e6);
+      ledcWrite(4, pulse_width);
+    }
+    else
+    {
+      ledcWrite(4, 0);
+    }
   }
 }
 
