@@ -22,12 +22,9 @@ HardwareSerial &serialPort = Serial;
 #define BUCK_MODE 1
 #define BOOST_MODE 2
 #define BATT_CHARGE_MODE 3
-#define INVERTER_MODE 4
 
 #define BOOST_MODE_OFF ledcWrite(2, 0)
 #define BUCK_MODE_OFF ledcWrite(1, 0)
-#define INVERTER_MODE_OFF ledcWrite(3, 0); ledcWrite(4, 0)
-                          
 
 #define BUCK_PWM_PIN 22
 #define BOOST_PWM_PIN 23
@@ -51,7 +48,7 @@ void printGAINS();
 void sensorCalib();
 void cansartTasks();
 uint8_t cansartInit();
-void inverterProcess();
+void inverter_task();
 
 uint8_t operationMode = 0;
 
@@ -98,10 +95,6 @@ virtualTimer sensorACQ_Timer(10, '-');
 virtualTimer inverter_freq_Timer(9, '-'); // compensar o deadtimer
 virtualTimer inverter_deadTime_Timer(1, '-');
 
-double pulse_width = 0;
-unsigned long cycleTime = 0;
-unsigned long start_timer_cycle = 0;
-
 frame10 frames10;
 frame11 frames11;
 frame12 frames12;
@@ -109,6 +102,10 @@ frame13 frames13;
 frame14 frames14;
 frame121 frames121;
 frame122 frames122;
+
+double pulse_width = 0;
+unsigned long cycleTime = 0;
+unsigned long start_timer_cycle = 0;
 
 void setup()
 {
@@ -121,7 +118,15 @@ void setup()
   ledcAttachPin(BOOST_PWM_PIN, 2);
   ledcWrite(2, 0);
 
+  // pinMode(INVERTER_POS_PWM_PIN, OUTPUT);
+  // pinMode(INVERTER_NEG_PWM_PIN, OUTPUT);
+
   inverter_freq_Timer.start();
+
+  // while (1)
+  // {
+  //   inverter_task();
+  // }
 
   ledcSetup(3, 10000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
@@ -137,90 +142,21 @@ void loop()
 
   //  monitorState();
 
-// getConverterValues();
+  getConverterValues();
 
-//  processCycle();
-inverterProcess();
+  processCycle();
+while(1){
+  inverter_task();
+}
   // safetyCheck();
 
-//  cansartTasks();
+  cansartTasks();
 }
 
-void processCycle()
-{
-  switch (operationMode)
-  {
-  case OFF_MODE:
-
-    BOOST_MODE_OFF;
-    BUCK_MODE_OFF;
-    Buck_PID.resetPID();
-    Boost_PID.resetPID();
-    Buck_I_PID.resetPID();
-
-    break;
-
-  case BUCK_MODE:
-    INVERTER_MODE_OFF;
-    buckProcess();
-
-    break;
-
-  case BOOST_MODE:
-    INVERTER_MODE_OFF;
-    boostProcess();
-
-    break;
-
-  case BATT_CHARGE_MODE:
-    INVERTER_MODE_OFF;
-    battCharge();
-    break;
-
-  case INVERTER_MODE:
-
-    boostProcess();
-    inverterProcess();
-
-    break;
-
-  default:
-    break;
-  }
-}
-
-void buckProcess()
-{
-  Boost_PID.resetPID();
-  BOOST_MODE_OFF;
-
-  Buck_PID.updtError(batt_V_Setpoint, batt_V);
-
-  if (Buck_PID.OutSignal())
-  {
-
-    ledcWrite(1, Buck_PID.Control());
-  }
-}
-
-void boostProcess()
-{
-  Buck_PID.resetPID();
-  BUCK_MODE_OFF;
-
-  Boost_PID.updtError(dcbus_V_Setpoint, dcbus_V);
-
-  if (Boost_PID.OutSignal())
-  {
-
-    ledcWrite(2, Boost_PID.Control());
-  }
-}
-
-void inverterProcess()
+void inverter_task()
 {
 
- if (inverter_freq_Timer.Q())
+  if (inverter_freq_Timer.Q())
   {
 
     if (!inverter_cycle)
@@ -286,6 +222,70 @@ void inverterProcess()
       ledcWrite(4, 0);
     }
 
+    // digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
+    // digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
+  }
+}
+void processCycle()
+{
+  switch (operationMode)
+  {
+  case OFF_MODE:
+
+    BOOST_MODE_OFF;
+    BUCK_MODE_OFF;
+    Buck_PID.resetPID();
+    Boost_PID.resetPID();
+    Buck_I_PID.resetPID();
+
+    break;
+
+  case BUCK_MODE:
+
+    buckProcess();
+
+    break;
+
+  case BOOST_MODE:
+
+    boostProcess();
+
+    break;
+
+  case BATT_CHARGE_MODE:
+    battCharge();
+    break;
+
+  default:
+    break;
+  }
+}
+
+void buckProcess()
+{
+  Boost_PID.resetPID();
+  BOOST_MODE_OFF;
+
+  Buck_PID.updtError(batt_V_Setpoint, batt_V);
+
+  if (Buck_PID.OutSignal())
+  {
+
+    ledcWrite(1, Buck_PID.Control());
+  }
+}
+
+void boostProcess()
+{
+  Buck_PID.resetPID();
+  BUCK_MODE_OFF;
+
+  Boost_PID.updtError(dcbus_V_Setpoint, dcbus_V);
+
+  if (Boost_PID.OutSignal())
+  {
+
+    ledcWrite(2, Boost_PID.Control());
   }
 }
 
