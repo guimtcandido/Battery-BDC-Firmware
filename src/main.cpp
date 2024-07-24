@@ -220,7 +220,7 @@ void boostProcess()
 void inverterProcess()
 {
 
-  if (inverter_freq_Timer.Q())
+ if (inverter_freq_Timer.Q())
   {
 
     if (!inverter_cycle)
@@ -266,8 +266,8 @@ void inverterProcess()
 
     if (inverter_pos_request)
     {
-      cycleTime = micros() - start_timer_cycle;
-      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime / 1e6);
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
       ledcWrite(3, pulse_width);
     }
     else
@@ -277,14 +277,15 @@ void inverterProcess()
 
     if (inverter_neg_request)
     {
-      cycleTime = micros() - start_timer_cycle;
-      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime / 1e6);
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
       ledcWrite(4, pulse_width);
     }
     else
     {
       ledcWrite(4, 0);
     }
+
   }
 }
 
