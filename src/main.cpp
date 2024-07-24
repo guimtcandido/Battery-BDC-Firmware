@@ -26,9 +26,8 @@ HardwareSerial &serialPort = Serial;
 
 #define BOOST_MODE_OFF ledcWrite(2, 0)
 #define BUCK_MODE_OFF ledcWrite(1, 0)
-#define INVERTER_MODE_OFF \
-  ledcWrite(3, 0);        \
-  ledcWrite(4, 0)
+#define INVERTER_MODE_OFF ledcWrite(3, 0); ledcWrite(4, 0)
+                          
 
 #define BUCK_PWM_PIN 22
 #define BOOST_PWM_PIN 23
@@ -113,7 +112,7 @@ frame122 frames122;
 
 void setup()
 {
-  setCANSART_Driver(serialPort, 921600);
+  setCANSART_Driver(serialPort, 115200);
   ledcSetup(1, 20000, 10); // PWM BUCK
   ledcAttachPin(BUCK_PWM_PIN, 1);
   ledcWrite(1, 0);
@@ -124,16 +123,13 @@ void setup()
 
   inverter_freq_Timer.start();
 
-  ledcSetup(3, 10000, 10); // PWM BOOST
+  ledcSetup(3, 20000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
   ledcWrite(3, 0);
 
-  ledcSetup(4, 10000, 10); // PWM BOOST
+  ledcSetup(4, 20000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
   ledcWrite(4, 0);
-
- Boost_PID.ParamSet(1, 0.01, 0, 1, 1);
-
 }
 
 void loop()
@@ -142,12 +138,12 @@ void loop()
   //  monitorState();
 
   getConverterValues();
-   operationMode = 4;
+
   processCycle();
 
   // safetyCheck();
 
-  //cansartTasks();
+  cansartTasks();
 }
 
 void processCycle()
@@ -209,8 +205,8 @@ void buckProcess()
 
 void boostProcess()
 {
- // Buck_PID.resetPID();
- // BUCK_MODE_OFF;
+  Buck_PID.resetPID();
+  BUCK_MODE_OFF;
 
   Boost_PID.updtError(dcbus_V_Setpoint, dcbus_V);
 
@@ -224,7 +220,7 @@ void boostProcess()
 void inverterProcess()
 {
 
-  if (inverter_freq_Timer.Q())
+ if (inverter_freq_Timer.Q())
   {
 
     if (!inverter_cycle)
@@ -270,8 +266,8 @@ void inverterProcess()
 
     if (inverter_pos_request)
     {
-      cycleTime = micros() - start_timer_cycle;
-      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime / 1e6);
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
       ledcWrite(3, pulse_width);
     }
     else
@@ -281,47 +277,48 @@ void inverterProcess()
 
     if (inverter_neg_request)
     {
-      cycleTime = micros() - start_timer_cycle;
-      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime / 1e6);
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
       ledcWrite(4, pulse_width);
     }
     else
     {
       ledcWrite(4, 0);
     }
+
   }
 }
 
 void getConverterValues()
 {
-  //batt_V_RAW = analogRead(BAT_VOLTAGE_PIN);
-//
-  //batt_I_RAW = analogRead(BAT_CURRENT_PIN);
+  batt_V_RAW = analogRead(BAT_VOLTAGE_PIN);
+
+  batt_I_RAW = analogRead(BAT_CURRENT_PIN);
 
   dcbus_V_RAW = analogRead(DCBUS_VOLTAGE_PIN);
 
- // dcbus_I_RAW = analogRead(DCBUS_CURRENT_PIN);
+  dcbus_I_RAW = analogRead(DCBUS_CURRENT_PIN);
 
- //batt_V_INTEGRAL += batt_V_RAW;
- //batt_I_INTEGRAL += batt_I_RAW;
+  batt_V_INTEGRAL += batt_V_RAW;
+  batt_I_INTEGRAL += batt_I_RAW;
   dcbus_V_INTEGRAL += dcbus_V_RAW;
-  //dcbus_I_INTEGRAL += dcbus_I_RAW;
+  dcbus_I_INTEGRAL += dcbus_I_RAW;
 
   if (avgCounter == AVERAGE_SAMPLES)
   {
-   // batt_V_temp = (batt_V_INTEGRAL / (float)AVERAGE_SAMPLES);
-   // batt_I_temp = (batt_I_INTEGRAL / (float)AVERAGE_SAMPLES);
+    batt_V_temp = (batt_V_INTEGRAL / (float)AVERAGE_SAMPLES);
+    batt_I_temp = (batt_I_INTEGRAL / (float)AVERAGE_SAMPLES);
     dcbus_V_temp = (dcbus_V_INTEGRAL / (float)AVERAGE_SAMPLES);
-    //dcbus_I_temp = (dcbus_I_INTEGRAL / (float)AVERAGE_SAMPLES);
-   // batt_V = batt_V_temp * VO_BATT_SENRATIO;
-   // batt_I = batt_I_temp * IO_BATT_SENRATIO - 14.0729416;
+    dcbus_I_temp = (dcbus_I_INTEGRAL / (float)AVERAGE_SAMPLES);
+    batt_V = batt_V_temp * VO_BATT_SENRATIO;
+    batt_I = batt_I_temp * IO_BATT_SENRATIO - 14.0729416;
     dcbus_V = dcbus_V_temp * VO_BST_SENRATIO;
-   // dcbus_I = dcbus_I_temp * IO_BST_SENRATIO - 17.128725;
+    dcbus_I = dcbus_I_temp * IO_BST_SENRATIO - 17.128725;
     avgCounter = 0;
-   // batt_V_INTEGRAL = 0;
-   // batt_I_INTEGRAL = 0;
+    batt_V_INTEGRAL = 0;
+    batt_I_INTEGRAL = 0;
     dcbus_V_INTEGRAL = 0;
-   // dcbus_I_INTEGRAL = 0;
+    dcbus_I_INTEGRAL = 0;
   }
   else
   {
@@ -607,87 +604,87 @@ void cansartTasks()
   {
     frames11.DATA3 = ((uint16_t)(batt_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_V_Setpoint * 100);
-  //  frames14.DATA7 = ((uint16_t)(Buck_PID.Control()) >> 8);
-  //  frames14.DATA8 = (uint16_t)(Buck_PID.Control());
-  //  frames13.DATA7 = ((uint16_t)(Buck_PID.getIntegral()) >> 8);
-  //  frames13.DATA8 = (uint16_t)(Buck_PID.getIntegral());
+    frames14.DATA7 = ((uint16_t)(Buck_PID.Control()) >> 8);
+    frames14.DATA8 = (uint16_t)(Buck_PID.Control());
+    frames13.DATA7 = ((uint16_t)(Buck_PID.getIntegral()) >> 8);
+    frames13.DATA8 = (uint16_t)(Buck_PID.getIntegral());
   }
   else if (operationMode == BOOST_MODE)
   {
     frames11.DATA3 = ((uint16_t)(dcbus_V_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(dcbus_V_Setpoint * 100);
-  //  frames14.DATA7 = ((uint16_t)(Boost_PID.Control()) >> 8);
-  //  frames14.DATA8 = (uint16_t)(Boost_PID.Control());
-  //  frames13.DATA7 = ((uint16_t)(Boost_PID.getIntegral()) >> 8);
-  //  frames13.DATA8 = (uint16_t)(Boost_PID.getIntegral());
+    frames14.DATA7 = ((uint16_t)(Boost_PID.Control()) >> 8);
+    frames14.DATA8 = (uint16_t)(Boost_PID.Control());
+    frames13.DATA7 = ((uint16_t)(Boost_PID.getIntegral()) >> 8);
+    frames13.DATA8 = (uint16_t)(Boost_PID.getIntegral());
   }
   else if (operationMode == BATT_CHARGE_MODE)
   {
     frames11.DATA3 = ((uint16_t)(batt_I_Setpoint * 100) >> 8);
     frames11.DATA4 = (uint16_t)(batt_I_Setpoint * 100);
-  //  frames14.DATA7 = ((uint16_t)(Buck_I_PID.Control()) >> 8);
-  //  frames14.DATA8 = (uint16_t)(Buck_I_PID.Control());
+    frames14.DATA7 = ((uint16_t)(Buck_I_PID.Control()) >> 8);
+    frames14.DATA8 = (uint16_t)(Buck_I_PID.Control());
   }
   else if (operationMode == OFF_MODE)
   {
-  //  frames11.DATA3 = 0;
-  //  frames11.DATA4 = 0;
+    frames11.DATA3 = 0;
+    frames11.DATA4 = 0;
   }
 
   // frames11.DATA5 = digitalRead(CIRCUIT_BREAKER_PIN);
-  //frames11.DATA6 = batt_CHARGED;
-//
-  //frames12.DATA1 = ((uint16_t)(Buck_PID.getKp() * 100) >> 8);
-  //frames12.DATA2 = (uint16_t)(Buck_PID.getKp() * 100);
-  //frames12.DATA3 = ((uint16_t)(Buck_PID.getKi() * 100) >> 8);
-  //frames12.DATA4 = (uint16_t)(Buck_PID.getKi() * 100);
-  //frames12.DATA5 = ((uint16_t)(Buck_PID.getKd() * 100) >> 8);
-  //frames12.DATA6 = (uint16_t)(Buck_PID.getKd() * 100);
-//
-  //frames13.DATA1 = ((uint16_t)(Boost_PID.getKp() * 100) >> 8);
-  //frames13.DATA2 = (uint16_t)(Boost_PID.getKp() * 100);
-  //frames13.DATA3 = ((uint16_t)(Boost_PID.getKi() * 100) >> 8);
-  //frames13.DATA4 = (uint16_t)(Boost_PID.getKi() * 100);
-  //frames13.DATA5 = ((uint16_t)(Boost_PID.getKd() * 100) >> 8);
-  //frames13.DATA6 = (uint16_t)(Boost_PID.getKd() * 100);
-//
-  //frames14.DATA1 = ((uint16_t)(Buck_I_PID.getKp() * 100) >> 8);
-  //frames14.DATA2 = (uint16_t)(Buck_I_PID.getKp() * 100);
-  //frames14.DATA3 = ((uint16_t)(Buck_I_PID.getKi() * 100) >> 8);
-  //frames14.DATA4 = (uint16_t)(Buck_I_PID.getKi() * 100);
-  //frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
-  //frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
+  frames11.DATA6 = batt_CHARGED;
+
+  frames12.DATA1 = ((uint16_t)(Buck_PID.getKp() * 100) >> 8);
+  frames12.DATA2 = (uint16_t)(Buck_PID.getKp() * 100);
+  frames12.DATA3 = ((uint16_t)(Buck_PID.getKi() * 100) >> 8);
+  frames12.DATA4 = (uint16_t)(Buck_PID.getKi() * 100);
+  frames12.DATA5 = ((uint16_t)(Buck_PID.getKd() * 100) >> 8);
+  frames12.DATA6 = (uint16_t)(Buck_PID.getKd() * 100);
+
+  frames13.DATA1 = ((uint16_t)(Boost_PID.getKp() * 100) >> 8);
+  frames13.DATA2 = (uint16_t)(Boost_PID.getKp() * 100);
+  frames13.DATA3 = ((uint16_t)(Boost_PID.getKi() * 100) >> 8);
+  frames13.DATA4 = (uint16_t)(Boost_PID.getKi() * 100);
+  frames13.DATA5 = ((uint16_t)(Boost_PID.getKd() * 100) >> 8);
+  frames13.DATA6 = (uint16_t)(Boost_PID.getKd() * 100);
+
+  frames14.DATA1 = ((uint16_t)(Buck_I_PID.getKp() * 100) >> 8);
+  frames14.DATA2 = (uint16_t)(Buck_I_PID.getKp() * 100);
+  frames14.DATA3 = ((uint16_t)(Buck_I_PID.getKi() * 100) >> 8);
+  frames14.DATA4 = (uint16_t)(Buck_I_PID.getKi() * 100);
+  frames14.DATA5 = ((uint16_t)(Buck_I_PID.getKd() * 100) >> 8);
+  frames14.DATA6 = (uint16_t)(Buck_I_PID.getKd() * 100);
 
   updateDB(&frames10);
   updateDB(&frames11);
- //updateDB(&frames12);
- //updateDB(&frames13);
- //updateDB(&frames14);
- //updateDB(&frames121);
- //updateDB(&frames122);
+  updateDB(&frames12);
+  updateDB(&frames13);
+  updateDB(&frames14);
+  updateDB(&frames121);
+  updateDB(&frames122);
 
- // operationMode = frames121.DATA1;
-//
- // // digitalWrite(CIRCUIT_BREAKER_PIN, frames121.DATA4);
-//
- // float tempValue = ((float)(frames122.DATA1 << 8 | frames122.DATA2) / 100);
- // float tempValue2 = ((float)(frames122.DATA3 << 8 | frames122.DATA4) / 100);
- // float tempValue3 = ((float)(frames122.DATA5 << 8 | frames122.DATA6) / 100);
-//
- // if (operationMode == BUCK_MODE)
- // {
- //   batt_V_Setpoint = ((float)(frames121.DATA2 << 8 | frames121.DATA3) / 100);
- //   Buck_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
- // }
- // else if (operationMode == BOOST_MODE)
- // {
- //   dcbus_V_Setpoint = ((float)(frames121.DATA5 << 8 | frames121.DATA6) / 100);
- //   Boost_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
- // }
-//
- // if (operationMode == BATT_CHARGE_MODE)
- // {
- //   Buck_I_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
- // }
+  operationMode = frames121.DATA1;
+
+  // digitalWrite(CIRCUIT_BREAKER_PIN, frames121.DATA4);
+
+  float tempValue = ((float)(frames122.DATA1 << 8 | frames122.DATA2) / 100);
+  float tempValue2 = ((float)(frames122.DATA3 << 8 | frames122.DATA4) / 100);
+  float tempValue3 = ((float)(frames122.DATA5 << 8 | frames122.DATA6) / 100);
+
+  if (operationMode == BUCK_MODE)
+  {
+    batt_V_Setpoint = ((float)(frames121.DATA2 << 8 | frames121.DATA3) / 100);
+    Buck_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
+  }
+  else if (operationMode == BOOST_MODE)
+  {
+    dcbus_V_Setpoint = ((float)(frames121.DATA5 << 8 | frames121.DATA6) / 100);
+    Boost_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
+  }
+
+  if (operationMode == BATT_CHARGE_MODE)
+  {
+    Buck_I_PID.ParamSet(tempValue, tempValue2, tempValue3, 1, 1);
+  }
 }
 // GITUPDATE
