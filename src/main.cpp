@@ -123,11 +123,11 @@ void setup()
 
   inverter_freq_Timer.start();
 
-  ledcSetup(3, 20000, 10); // PWM BOOST
+  ledcSetup(3, 10000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
   ledcWrite(3, 0);
 
-  ledcSetup(4, 20000, 10); // PWM BOOST
+  ledcSetup(4, 10000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
   ledcWrite(4, 0);
 }
@@ -137,13 +137,13 @@ void loop()
 
   //  monitorState();
 
-  getConverterValues();
+// getConverterValues();
 
-  processCycle();
-
+//  processCycle();
+inverterProcess();
   // safetyCheck();
 
-  cansartTasks();
+//  cansartTasks();
 }
 
 void processCycle()
