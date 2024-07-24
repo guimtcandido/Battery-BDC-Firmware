@@ -4,6 +4,11 @@
 #include <HardwareSerial.h>
 #include "VirtualTimer.h"
 
+#define INVERTER_FREQ 50
+
+#define INVERTER_PERIOD (1 / INVERTER_FREQ)
+#define INVERTER_HALF_PERIOD_ms ((INVERTER_PERIOD / 2) * 1000)
+
 HardwareSerial &serialPort = Serial;
 
 #define VO_BATT_SENRATIO 0.0093673 // Medir empiricamente
@@ -43,6 +48,7 @@ void printGAINS();
 void sensorCalib();
 void cansartTasks();
 uint8_t cansartInit();
+void inverter_task();
 
 uint8_t operationMode = 0;
 
@@ -73,6 +79,10 @@ float batt_I_temp = 0;
 float dcbus_V_temp = 0;
 float dcbus_I_temp = 0;
 
+uint8_t inverter_cycle = 0;
+uint8_t inverter_pos_request = 0;
+uint8_t inverter_neg_request = 0;
+
 uint8_t avgCounter = 0;
 
 uint8_t batt_CHARGED = false;
@@ -82,6 +92,8 @@ unsigned long vTimer_prev_0 = 0;
 bool awakeMCU = false;
 
 virtualTimer sensorACQ_Timer(10, '-');
+virtualTimer inverter_freq_Timer(9, '-'); // compensar o deadtimer
+virtualTimer inverter_deadTime_Timer(1, '-');
 
 frame10 frames10;
 frame11 frames11;
@@ -90,6 +102,10 @@ frame13 frames13;
 frame14 frames14;
 frame121 frames121;
 frame122 frames122;
+
+double pulse_width = 0;
+unsigned long cycleTime = 0;
+unsigned long start_timer_cycle = 0;
 
 void setup()
 {
@@ -102,13 +118,23 @@ void setup()
   ledcAttachPin(BOOST_PWM_PIN, 2);
   ledcWrite(2, 0);
 
-  ledcSetup(3, 20000, 10); // PWM BOOST
-  ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
-  ledcWrite(3, 512);
+  // pinMode(INVERTER_POS_PWM_PIN, OUTPUT);
+  // pinMode(INVERTER_NEG_PWM_PIN, OUTPUT);
 
-  ledcSetup(4, 20000, 10); // PWM BOOST
+  inverter_freq_Timer.start();
+
+  // while (1)
+  // {
+  //   inverter_task();
+  // }
+
+  ledcSetup(3, 10000, 10); // PWM BOOST
+  ledcAttachPin(INVERTER_POS_PWM_PIN, 3);
+  ledcWrite(3, 0);
+
+  ledcSetup(4, 10000, 10); // PWM BOOST
   ledcAttachPin(INVERTER_NEG_PWM_PIN, 4);
-  ledcWrite(4, 512);
+  ledcWrite(4, 0);
 }
 
 void loop()
@@ -119,12 +145,87 @@ void loop()
   getConverterValues();
 
   processCycle();
-
+while(1){
+  inverter_task();
+}
   // safetyCheck();
 
   cansartTasks();
 }
 
+void inverter_task()
+{
+
+  if (inverter_freq_Timer.Q())
+  {
+
+    if (!inverter_cycle)
+    {
+      inverter_neg_request = 0;
+
+      inverter_deadTime_Timer.start();
+
+      if (inverter_deadTime_Timer.Q())
+      {
+
+        inverter_pos_request = 1;
+        inverter_cycle = 1;
+        inverter_deadTime_Timer.reset();
+        inverter_freq_Timer.reset();
+        inverter_freq_Timer.start();
+        start_timer_cycle = micros();
+      }
+    }
+    else
+    {
+      inverter_pos_request = 0;
+
+      inverter_deadTime_Timer.start();
+
+      if (inverter_deadTime_Timer.Q())
+      {
+        inverter_neg_request = 1;
+        inverter_cycle = 0;
+        inverter_deadTime_Timer.reset();
+        inverter_freq_Timer.reset();
+        inverter_freq_Timer.start();
+        start_timer_cycle = micros();
+      }
+    }
+  }
+
+  if (inverter_pos_request && inverter_neg_request)
+  {
+  }
+  else
+  {
+
+    if (inverter_pos_request)
+    {
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
+      ledcWrite(3, pulse_width);
+    }
+    else
+    {
+      ledcWrite(3, 0);
+    }
+
+    if (inverter_neg_request)
+    {
+      cycleTime = micros() - start_timer_cycle; 
+      pulse_width = 1023 * sin(100 * 3.1415 * cycleTime/1e6);
+      ledcWrite(4, pulse_width);
+    }
+    else
+    {
+      ledcWrite(4, 0);
+    }
+
+    // digitalWrite(INVERTER_POS_PWM_PIN, inverter_pos_request);
+    // digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
+  }
+}
 void processCycle()
 {
   switch (operationMode)
