@@ -6,10 +6,10 @@
 
 HardwareSerial &serialPort = Serial;
 
-#define VO_BATT_SENRATIO 0.0093673      // Medir empiricamente
-#define IO_BATT_SENRATIO 0.0069767      // Medir empiricamente
-#define VO_BST_SENRATIO  0.0094574      // Medir empiricamente
-#define IO_BST_SENRATIO  0.0086074      // Medir empiricamente
+#define VO_BATT_SENRATIO 0.0093673 // Medir empiricamente
+#define IO_BATT_SENRATIO 0.0069767 // Medir empiricamente
+#define VO_BST_SENRATIO 0.0094574  // Medir empiricamente
+#define IO_BST_SENRATIO 0.0086074  // Medir empiricamente
 
 #define AVERAGE_SAMPLES 100
 
@@ -210,7 +210,7 @@ void getConverterValues()
     dcbus_V_temp = (dcbus_V_INTEGRAL / (float)AVERAGE_SAMPLES);
     dcbus_I_temp = (dcbus_I_INTEGRAL / (float)AVERAGE_SAMPLES);
     batt_V = batt_V_temp * VO_BATT_SENRATIO;
-    batt_I = batt_I_temp * IO_BATT_SENRATIO - 14.0729416 ;
+    batt_I = batt_I_temp * IO_BATT_SENRATIO - 14.0729416;
     dcbus_V = dcbus_V_temp * VO_BST_SENRATIO;
     dcbus_I = dcbus_I_temp * IO_BST_SENRATIO - 17.128725;
     avgCounter = 0;
