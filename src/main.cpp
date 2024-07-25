@@ -4,6 +4,7 @@
 #include <HardwareSerial.h>
 #include "VirtualTimer.h"
 
+
 #define INVERTER_FREQ 50
 
 #define INVERTER_PERIOD (1 / INVERTER_FREQ)
@@ -13,7 +14,7 @@ HardwareSerial &serialPort = Serial;
 
 #define VO_BATT_SENRATIO 0.0093673 // Medir empiricamente
 #define IO_BATT_SENRATIO 0.0069767 // Medir empiricamente
-#define VO_BST_SENRATIO 0.0094574  // Medir empiricamente
+#define VO_BST_SENRATIO 0.009022  // Medir empiricamente
 #define IO_BST_SENRATIO 0.0086074  // Medir empiricamente
 
 #define AVERAGE_SAMPLES 100
@@ -35,6 +36,8 @@ HardwareSerial &serialPort = Serial;
 #define BAT_CURRENT_PIN 14
 #define DCBUS_VOLTAGE_PIN 4
 #define DCBUS_CURRENT_PIN 35
+
+#define BATTERY_CHARGE_CURRENT 1
 
 void buckProcess();
 void boostProcess();
@@ -145,9 +148,9 @@ void loop()
   getConverterValues();
 
   processCycle();
-while(1){
-  inverter_task();
-}
+//while(1){
+//  inverter_task();
+//}
   // safetyCheck();
 
   cansartTasks();
@@ -226,6 +229,7 @@ void inverter_task()
     // digitalWrite(INVERTER_NEG_PWM_PIN, inverter_neg_request);
   }
 }
+
 void processCycle()
 {
   switch (operationMode)
@@ -310,9 +314,9 @@ void getConverterValues()
     batt_I_temp = (batt_I_INTEGRAL / (float)AVERAGE_SAMPLES);
     dcbus_V_temp = (dcbus_V_INTEGRAL / (float)AVERAGE_SAMPLES);
     dcbus_I_temp = (dcbus_I_INTEGRAL / (float)AVERAGE_SAMPLES);
-    batt_V = batt_V_temp * VO_BATT_SENRATIO;
-    batt_I = batt_I_temp * IO_BATT_SENRATIO - 14.0729416;
-    dcbus_V = dcbus_V_temp * VO_BST_SENRATIO;
+    batt_V = batt_V_RAW * VO_BATT_SENRATIO;
+    batt_I = batt_I_RAW * IO_BATT_SENRATIO - 14.0729416;
+    dcbus_V = dcbus_V_RAW * VO_BST_SENRATIO;
     dcbus_I = dcbus_I_temp * IO_BST_SENRATIO - 17.128725;
     avgCounter = 0;
     batt_V_INTEGRAL = 0;
@@ -323,157 +327,6 @@ void getConverterValues()
   else
   {
     avgCounter++;
-  }
-}
-
-void monitorState()
-
-{
-  char letter;
-  float tempValue;
-  if (millis() - vTimer_prev_0 >= 500)
-  {
-    Serial.print("CN");
-    Serial.print(Buck_I_PID.Control());
-    Serial.print("WK");
-    Serial.print(awakeMCU = !awakeMCU);
-    Serial.print("BV");
-    if (batt_V >= 0)
-    {
-      Serial.print("+");
-    }
-    Serial.print(batt_V); // Já está
-    Serial.print("BC");
-    if (batt_I >= 0)
-    {
-      Serial.print("+");
-    }
-    Serial.print(batt_I); // Já está
-    Serial.print("IV");
-    if (dcbus_V >= 0)
-    {
-      Serial.print("+");
-    }
-    Serial.print(dcbus_V); // Já está
-    Serial.print("IC");
-    if (dcbus_I >= 0)
-    {
-      Serial.print("+");
-    }
-    Serial.print(dcbus_I); // Já está
-    Serial.print("CM");
-    Serial.print(operationMode); // Já está
-    Serial.print("RE");
-    // Serial.print(digitalRead(CIRCUIT_BREAKER_PIN)); // Já está
-    Serial.print("BS");
-    Serial.print(batt_CHARGED); // Já está
-    printGAINS();               // Já está
-
-    Serial.print("SP");
-    if (operationMode == BUCK_MODE)
-    {
-      Serial.println(batt_V_Setpoint); // Já está
-    }
-    else if (operationMode == BOOST_MODE)
-    {
-      Serial.println(dcbus_V_Setpoint); // Já está
-    }
-    else if (operationMode == BATT_CHARGE_MODE)
-    {
-      Serial.println(batt_I_Setpoint); // Já está
-    }
-    else if (operationMode == OFF_MODE)
-    {
-      Serial.println(0); // Já está
-    }
-
-    vTimer_prev_0 = millis();
-  }
-
-  if (Serial.available() > 0)
-  {
-
-    sscanf(Serial.readStringUntil('\n').c_str(), "%c%f", &letter, &tempValue);
-
-    switch (letter)
-    {
-    case 'A': // Já está
-      operationMode = (uint8_t)tempValue;
-      break;
-
-    case 'B': // Já está
-
-      if (operationMode == BUCK_MODE)
-      {
-        batt_V_Setpoint = tempValue;
-      }
-      else if (operationMode == BOOST_MODE)
-      {
-        dcbus_V_Setpoint = tempValue;
-      }
-      break;
-
-    case 'C': // Já está
-      if (tempValue)
-      {
-        // digitalWrite(CIRCUIT_BREAKER_PIN, HIGH);
-      }
-      else
-      {
-        // digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
-      }
-      break;
-
-    case 'D':
-
-      batt_V_Setpoint = tempValue;
-
-      break;
-
-    case 'E':
-      batt_I_Setpoint = tempValue;
-      break;
-
-    case 'F':
-      if (operationMode == BUCK_MODE)
-        Buck_PID.ParamSet(tempValue, Buck_PID.getKi(), Buck_PID.getKd(), 1, 1);
-      else if (operationMode == BOOST_MODE)
-        Boost_PID.ParamSet(tempValue, Boost_PID.getKi(), Boost_PID.getKd(), 1, 1);
-      else if (operationMode == BATT_CHARGE_MODE)
-        Buck_I_PID.ParamSet(tempValue, Buck_I_PID.getKi(), Buck_I_PID.getKd(), 1, 1);
-
-      break;
-
-    case 'G':
-      if (operationMode == BUCK_MODE)
-        Buck_PID.ParamSet(Buck_PID.getKp(), tempValue, Buck_PID.getKd(), 1, 1);
-      else if (operationMode == BOOST_MODE)
-        Boost_PID.ParamSet(Boost_PID.getKp(), tempValue, Boost_PID.getKd(), 1, 1);
-      else if (operationMode == BATT_CHARGE_MODE)
-        Buck_I_PID.ParamSet(Buck_I_PID.getKp(), tempValue, Buck_I_PID.getKd(), 1, 1);
-      break;
-
-    case 'H':
-      if (operationMode == BUCK_MODE)
-      {
-        Buck_PID.ParamSet(Buck_PID.getKp(), Buck_PID.getKi(), tempValue, 1, 1);
-        Buck_PID.resetPID();
-      }
-      else if (operationMode == BOOST_MODE)
-      {
-        Boost_PID.ParamSet(Boost_PID.getKp(), Boost_PID.getKi(), tempValue, 1, 1);
-        Boost_PID.resetPID();
-      }
-      else if (operationMode == BATT_CHARGE_MODE)
-      {
-        Buck_I_PID.ParamSet(Buck_I_PID.getKp(), Buck_I_PID.getKi(), tempValue, 1, 1);
-        Buck_I_PID.resetPID();
-      }
-      break;
-
-    default:
-      break;
-    }
   }
 }
 
@@ -491,6 +344,7 @@ void battCharge()
     batt_CHARGED = false;
     if (batt_V < 13.6)
     {
+      batt_I_Setpoint = BATTERY_CHARGE_CURRENT;
       batt_currentControl();
     }
     else
@@ -511,7 +365,7 @@ void batt_currentControl()
   if (Buck_I_PID.OutSignal())
   {
 
-    ledcWrite(1, 1024 - Buck_I_PID.Control());
+    ledcWrite(1, Buck_I_PID.Control());
   }
 }
 
@@ -521,49 +375,6 @@ void safetyCheck()
   {
     // digitalWrite(CIRCUIT_BREAKER_PIN, LOW);
     operationMode = OFF_MODE;
-  }
-}
-
-void printGAINS()
-{
-  Serial.print("KP");
-  if (operationMode == BUCK_MODE)
-  {
-    Serial.print(Buck_PID.getKp());
-  }
-  else if (operationMode == BOOST_MODE)
-  {
-    Serial.print(Boost_PID.getKp());
-  }
-  else if (operationMode == BATT_CHARGE_MODE)
-  {
-    Serial.print(Buck_I_PID.getKp());
-  }
-  Serial.print("KI");
-  if (operationMode == BUCK_MODE)
-  {
-    Serial.print(Buck_PID.getKi());
-  }
-  else if (operationMode == BOOST_MODE)
-  {
-    Serial.print(Boost_PID.getKi());
-  }
-  else if (operationMode == BATT_CHARGE_MODE)
-  {
-    Serial.print(Buck_I_PID.getKi());
-  }
-  Serial.print("KD");
-  if (operationMode == BUCK_MODE)
-  {
-    Serial.print(Buck_PID.getKd());
-  }
-  else if (operationMode == BOOST_MODE)
-  {
-    Serial.print(Boost_PID.getKd());
-  }
-  else if (operationMode == BATT_CHARGE_MODE)
-  {
-    Serial.print(Buck_I_PID.getKd());
   }
 }
 
@@ -624,6 +435,8 @@ void cansartTasks()
     frames11.DATA4 = (uint16_t)(batt_I_Setpoint * 100);
     frames14.DATA7 = ((uint16_t)(Buck_I_PID.Control()) >> 8);
     frames14.DATA8 = (uint16_t)(Buck_I_PID.Control());
+    frames13.DATA7 = ((uint16_t)(Buck_I_PID.getIntegral()) >> 8);
+    frames13.DATA8 = (uint16_t)(Buck_I_PID.getIntegral());
   }
   else if (operationMode == OFF_MODE)
   {
